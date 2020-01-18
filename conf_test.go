@@ -1,54 +1,57 @@
-package conf_test
+package conf
 
 import (
-	"github.com/hiank/conf"
+	"gotest.tools/v3/assert"
 	"testing"
 )
 
-type Sys struct {
-	WsPort 		int64 		`json:"sys.wsPort"`
-	K8sPort 	int64 		`json:"sys.k8sPort"`
-}
-
-type JsonConf struct {
-	Wei 		string 		`json:"jsonConf.wei"`
-	Shao 		string 		`json:"jsonConf.shao"`
-}
-
-var defaultSysConf = `
-{
-	"sys.wsPort": 30250,
-	"sys.k8sPort": 30260
-}
+var jsonIn = `
+	{"ip": "192.168.1.1", "port": 1024}
 `
 
-func TestJson(t *testing.T) {
+func TestJsonConf(t *testing.T) {
 
-	sysInfo, err := conf.NewInfoFromFile("conf_test.json", &Sys{})
+	c := Conf(JSON)
+	m, err := c.UnmarshalToMap([]byte(jsonIn))
 	if err != nil {
 		t.Error(err)
 		return
 	}
+	assert.Equal(t, int(m["port"].(float64)), 1024)
+	assert.Equal(t, m["ip"], "192.168.1.1")
+}
 
-	cfg := conf.NewConf()
-	cfg.Load(sysInfo)
-	if sys, ok := cfg.Get("Sys"); ok {
-		t.Logf("wsport : %d, k8sport : %d\n", sys.(*Sys).WsPort, sys.(*Sys).K8sPort)
-	}
+var yamlIn = `
+ip: 192.168.1.1
+port: 1024
+`
 
-	jcInfo, err := conf.NewInfoFromFile("conf_test.json", &JsonConf{})
+func TestYamlConf(t *testing.T) {
+
+	c := Conf(YAML)
+	m, err := c.UnmarshalToMap([]byte(yamlIn))
 	if err != nil {
 		t.Error(err)
 		return
 	}
-	cfg.Load(jcInfo)
-	if jsonConf, ok := cfg.Get("JsonConf"); ok {
-		t.Log("name :", jsonConf.(*JsonConf).Wei, jsonConf.(*JsonConf).Shao)
-	}
+	assert.Equal(t, m["port"], 1024)
+	assert.Equal(t, m["ip"], "192.168.1.1")
+}
 
-	bitsInfo := conf.NewInfoFromBits([]byte(defaultSysConf), &Sys{}, conf.TypeJSON)
-	cfg.Load(bitsInfo)
-	if bitsConf, ok := cfg.Get("Sys"); ok {
-		t.Logf("bits wsport : %d, k8sport : %d\n", bitsConf.(*Sys).WsPort, bitsConf.(*Sys).K8sPort)
+type yamlConf struct {
+	IP   string `yaml:"ip"`
+	Port int
+}
+
+func TestYamlConfToStruct(t *testing.T) {
+
+	c := Conf(YAML)
+	var val yamlConf
+	err := c.Unmarshal([]byte(yamlIn), &val)
+	if err != nil {
+		t.Error(err)
+		return
 	}
+	assert.Equal(t, val.Port, 1024)
+	assert.Equal(t, val.IP, "192.168.1.1")
 }
