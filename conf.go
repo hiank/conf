@@ -1,131 +1,52 @@
 package conf
 
 import (
-	"strconv"
 	"errors"
-	"strings"
-	"reflect"
+	"strconv"
 	"encoding/json"
-	"io/ioutil"
+	"gopkg.in/yaml.v2"
 )
 
-//Conf is json format setting
-type Conf struct {
-	
-	hub 	map[string]interface{} 		//NOTE: map[key]ItemParser 
-}
+//Conf 用于解析配置数据
+type Conf int 
 
-//NewConf 创建一个新的Conf
-func NewConf() *Conf {
-
-	return &Conf{
-		hub : make(map[string]interface{}),
-	}
-}
-
-//Get 根据配置数据结构获得相关解析器
-func (conf *Conf) Get(ns string) (val interface{}, ok bool) {
-
-	val, ok = conf.hub[ns]
-	return
-}
-
-//Load 根据配置加载设置
-func (conf *Conf) Load(ci *Info) (err error) {
-	
-	t := reflect.TypeOf(ci.val)
-	if t.Kind() == reflect.Ptr {
-
-		t = t.Elem()
-	}
-	ns := t.Name()
-	val, ok := conf.Get(ns)
-	if !ok {
-
-		val = ci.val
-		conf.hub[ns] = val
-	}
-	switch ci.format {
-	case TypeJSON:
-		err = json.Unmarshal(ci.buf, val)
-	case TypeYAML:
-		err = errors.New("not support yaml now")
-	default:
-		err = errors.New("cann't parse config file typed " + strconv.Itoa(ci.format))
-	}
-	return
-}
-
-//Type 配置文件类型
+//
 const (
-	TypeJSON	= iota				//NOTE: json类型，默认类型
-	TypeYAML						//NOTE: yaml类型
+	Undefined 	= iota		//NOTE: 未定义的配置格式
+	JSON
+	YAML
 )
 
-//Info 用于构成配置文件信息
-type Info struct {
+//Unmarshal 解析配置到结构体中
+func (c *Conf) Unmarshal(in []byte, out interface{}) (err error) {
 
-	buf 		[]byte
-	val 		interface{}
-	format 		int
+	switch *c {
+	case JSON: err = c.unmarshalJSON(in, out)
+	case YAML: err = c.unmarshalYAML(in, out)
+	case Undefined: fallthrough
+	default:
+		err = errors.New("not support type : " + strconv.Itoa(int(*c)))
+	}
+	return 
 }
 
-//NewInfoFromFile 新建一个ConfInfo
-func NewInfoFromFile(fPath string, val interface{}) (info *Info, err error) {
+//UnmarshalToMap 解析配置文件到map中 key - value
+func (c *Conf) UnmarshalToMap(in []byte) (out map[string]interface{}, err error) {
 
-	idx := strings.LastIndexByte(fPath, '.')
-	if idx == -1 {
-		err = errors.New("failed file suffix : cann't find filename suffix")
-		return
-	}
-	var format int
-	switch strings.ToLower(fPath[idx+1:]) {
-	case "json": format = TypeJSON
-	case "yaml": format = TypeYAML
-	default:
-		err = errors.New("failed file suffix : cann't parse filename suffixed " + fPath[idx+1:])
-		return
-	}
-
-	var bits []byte
-	if bits, err = ioutil.ReadFile(fPath); err == nil {
-
-		info = NewInfoFromBits(bits, val, format)
+	out = make(map[string]interface{})
+	err = c.Unmarshal(in, &out)
+	if err != nil {
+		out = nil
 	}
 	return
 }
 
-//NewInfoFromBits 创建配置信息
-func NewInfoFromBits(bits []byte, val interface{}, format int) *Info {
+func (c *Conf) unmarshalJSON(in []byte, out interface{}) error {
 
-	return &Info{bits, val, format}
+	return json.Unmarshal(in, out)
 }
 
+func (c *Conf) unmarshalYAML(in []byte, out interface{}) error {
 
-// var _conf *conf
-// var mtx sync.RWMutex
-// //Init 初始化k8s conn pool
-// func Init(cis ...*Info) {
-
-// 	mtx.Lock()
-// 	if _conf == nil {
-
-// 		_conf = &conf{make(map[string]interface{})}
-// 	}
-// 	for _, ci := range cis {
-
-// 		_conf.load(ci)
-// 	}
-// 	mtx.Unlock()
-// }
-
-// // Get 获得全局Conf, ns必须是struct 的完整名称，大小写一致
-// func Get(ns string) (interface{}, bool) {
-
-// 	mtx.RLock()
-
-// 	val, ok := _conf.get(ns)
-	
-// 	mtx.RUnlock()
-// 	return val, ok
-// }
+	return yaml.Unmarshal(in, out)
+}
