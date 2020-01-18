@@ -1,4 +1,4 @@
-module hiank/conf.v2
+module github.com/hiank/conf
 
 go 1.13
 
